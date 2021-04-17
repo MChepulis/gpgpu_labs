@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31005.135
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cuda_lab_1(naive-matrix-mul)", "cuda_lab_1(naive-matrix-mul)\cuda_lab_1(naive-matrix-mul).vcxproj", "{C072F1BA-BFD5-43D0-A877-D99BF4919EDC}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cuda_lab_2(matrix-mul-with-shared)", "cuda_lab_2(matrix-mul-with-shared)\cuda_lab_2(matrix-mul-with-shared).vcxproj", "{31F231C5-501F-4A14-89BD-D67A954FA181}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C072F1BA-BFD5-43D0-A877-D99BF4919EDC}.Debug|x64.ActiveCfg = Debug|x64
+		{C072F1BA-BFD5-43D0-A877-D99BF4919EDC}.Debug|x64.Build.0 = Debug|x64
+		{C072F1BA-BFD5-43D0-A877-D99BF4919EDC}.Release|x64.ActiveCfg = Release|x64
+		{C072F1BA-BFD5-43D0-A877-D99BF4919EDC}.Release|x64.Build.0 = Release|x64
+		{31F231C5-501F-4A14-89BD-D67A954FA181}.Debug|x64.ActiveCfg = Debug|x64
+		{31F231C5-501F-4A14-89BD-D67A954FA181}.Debug|x64.Build.0 = Debug|x64
+		{31F231C5-501F-4A14-89BD-D67A954FA181}.Release|x64.ActiveCfg = Release|x64
+		{31F231C5-501F-4A14-89BD-D67A954FA181}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {F9C3B02F-DDAF-4EE1-8037-1492C2460714}
+	EndGlobalSection
+EndGlobal
