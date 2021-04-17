@@ -96,44 +96,6 @@ __global__ void mul_on_gpu_shared_kernel(double* a, double* b, double* result, s
 	}	
 }
 
-static const unsigned int BLOCK_SIZE = 32;
-__global__ void gpuKernMultShared(double* m1, double* m2,  double* res, size_t size)
-{
-	size_t ty = threadIdx.y;
-	size_t tx = threadIdx.x;
-	size_t i = blockDim.y * blockIdx.y + ty;
-	size_t j = blockDim.x * blockIdx.x + tx;
-	double sum = 0;
-	for (size_t ind = 0, aj = tx, bi = ty; ind * BLOCK_SIZE < size; ++ind, aj += BLOCK_SIZE, bi += BLOCK_SIZE)
-	{
-		__shared__ double a[BLOCK_SIZE][BLOCK_SIZE];
-		__shared__ double b[BLOCK_SIZE][BLOCK_SIZE];
-		a[ty][tx] = 0;
-		b[ty][tx] = 0;
-		if (i < size && aj < size)
-		{
-			a[ty][tx] = m1[i * size + aj];
-		}
-		if (j < size && bi < size)
-		{
-			b[ty][tx] = m2[bi * size + j];
-		}
-		__syncthreads();
-		for (size_t k = 0; k < BLOCK_SIZE; k++)
-		{
-			sum += a[ty][k] * b[k][tx];
-		}
-		__syncthreads();
-	}
-	if (i < size && j < size)
-	{
-		res[i * size + j] = sum;
-	}
-}
-
-
-
-
 __global__ void mul_on_gpu_kernel(double* a, double* b, double* result, size_t matrix_size) {
 	size_t i = blockDim.y * blockIdx.y + threadIdx.y;
 	size_t j = blockDim.x * blockIdx.x + threadIdx.x;
@@ -175,8 +137,6 @@ double process_on_gpu(double* matrix_A, double* matrix_B, double* result, size_t
 		break;
 	case MultType::GPU_SHARED:
 		mul_on_gpu_shared_kernel <<< cuda_blocks, cuda_threads >>> (gpu_mem_A, gpu_mem_B, gpu_mem_res, matrix_size);
-
-		//gpuKernMultShared <<< cuda_blocks, cuda_threads >>> (gpu_mem_A, gpu_mem_B, gpu_mem_res, matrix_size);
 		break;
 	default:
 		return -1;
