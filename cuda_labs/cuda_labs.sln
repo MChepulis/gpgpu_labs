@@ -7,6 +7,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cuda_lab_1(naive-matrix-mul
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cuda_lab_2(matrix-mul-with-shared)", "cuda_lab_2(matrix-mul-with-shared)\cuda_lab_2(matrix-mul-with-shared).vcxproj", "{31F231C5-501F-4A14-89BD-D67A954FA181}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cuda_lab_3(matrix-mul-warp-intrinsics)", "cuda_lab_3(matrix-mul-warp-intrinsics)\cuda_lab_3(matrix-mul-warp-intrinsics).vcxproj", "{C9DD7B26-E432-4376-B101-A84F3AC51A0D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -21,6 +23,10 @@ Global
 		{31F231C5-501F-4A14-89BD-D67A954FA181}.Debug|x64.Build.0 = Debug|x64
 		{31F231C5-501F-4A14-89BD-D67A954FA181}.Release|x64.ActiveCfg = Release|x64
 		{31F231C5-501F-4A14-89BD-D67A954FA181}.Release|x64.Build.0 = Release|x64
+		{C9DD7B26-E432-4376-B101-A84F3AC51A0D}.Debug|x64.ActiveCfg = Debug|x64
+		{C9DD7B26-E432-4376-B101-A84F3AC51A0D}.Debug|x64.Build.0 = Debug|x64
+		{C9DD7B26-E432-4376-B101-A84F3AC51A0D}.Release|x64.ActiveCfg = Release|x64
+		{C9DD7B26-E432-4376-B101-A84F3AC51A0D}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
