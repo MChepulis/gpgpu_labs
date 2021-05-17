@@ -1,19 +1,22 @@
 ﻿
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
+#include "cooperative_groups.h"
 
 #include <stdio.h>
 #include <iostream>
 #include <random>
 #include <windows.h>
 #include <time.h> 
+#include <assert.h>
 
 static const double VALUES_MIN = -1.0;
 static const double VALUES_MAX = 1.0;
 static const size_t CUDA_BLOCK_SIZE = 32;
-static const size_t MATRIX_SIZES_TO_TEST[4] = { 500, 1000, 1500, 1<<12 };
-enum class MultType { GPU, GPU_SHARED, GPU_WARP_INTRINSICS_1, GPU_WARP_INTRINSICS_2};
+static const size_t MATRIX_SIZES_TO_TEST[3] = { 500, 1000, 1500};
+enum class MultType { GPU, GPU_SHARED, GPU_WARP_INTRINSICS_1, GPU_WARP_INTRINSICS_2 };
 
+using namespace cooperative_groups;
 
 class MyCudaTimer {
 private:
@@ -55,47 +58,47 @@ void fill_matrix_rnd(double* matrix, size_t matrix_size) {
 	return;
 }
 
-
+template <size_t block_size>
 __global__ void mul_on_gpu_warp_intrinsics_kernel_slow_1(double* a, double* b, double* result, size_t matrix_size) {
-	size_t tx = threadIdx.x;
-	size_t ty = threadIdx.y;
+	thread_block block = this_thread_block();
+	dim3 block_index = block.group_index();
+	dim3 thread_index = block.thread_index();
 
-	size_t i = blockDim.y * blockIdx.y + ty;
-	size_t j = blockDim.x * blockIdx.x + tx;
+	size_t tx = thread_index.x;
+	size_t ty = thread_index.y;
+
+	size_t i = block_size * block_index.y + ty;
+	size_t j = block_size * block_index.x + tx;
 
 	size_t aj;
 	size_t bi;
 	double sum = 0.0;
 
-	for (size_t ind = 0; ind * CUDA_BLOCK_SIZE < matrix_size; ind++) {
-		aj = tx + CUDA_BLOCK_SIZE * ind;
-		bi = ty + CUDA_BLOCK_SIZE * ind;
+	for (size_t ind = 0; ind * block_size < matrix_size; ind++) {
+		aj = tx + block_size * ind;
+		bi = ty + block_size * ind;
 
 		double as;
-		__shared__ double bs[CUDA_BLOCK_SIZE][CUDA_BLOCK_SIZE];
+		__shared__ double bs[block_size][block_size];
 
 		as = 0;
 		bs[ty][tx] = 0;
-		if (i < matrix_size && aj < matrix_size)
-		{
+		if (i < matrix_size && aj < matrix_size){
 			as = a[i * matrix_size + aj];
 		}
-		if (j < matrix_size && bi < matrix_size)
-		{
+		if (j < matrix_size && bi < matrix_size){
 			bs[ty][tx] = b[bi * matrix_size + j];
 		}
 
-		__syncthreads();
+		block.sync();
 
-		for (size_t k = 0; k < CUDA_BLOCK_SIZE; k++)
-		{
+		for (size_t k = 0; k < block_size; k++){
 			sum += __shfl_sync(-1, as, k) * bs[k][tx];
 		}
-		__syncthreads();
+		block.sync();
 	}
 
-	if (i < matrix_size && j < matrix_size)
-	{
+	if (i < matrix_size && j < matrix_size){
 		result[i * matrix_size + j] = sum;
 	}
 }
@@ -106,17 +109,22 @@ __global__ void mul_on_gpu_warp_intrinsics_kernel(double* a, double* b, double* 
 	const size_t warp_width = 8;
 	const size_t warp_height = 4;
 
-	size_t wid = threadIdx.y;
+	thread_block block = this_thread_block();
+	dim3 block_index = block.group_index();
+	dim3 thread_index = block.thread_index();
+
+
+	size_t wid = thread_index.y;
 	size_t wy = wid / warp_height;
 	size_t wx = wid % warp_height;
 
-	size_t lane = threadIdx.x;
+	size_t lane = thread_index.x;
 	size_t ty = lane / warp_width;
 	size_t tx = lane % warp_width;
 
 
-	size_t i = blockIdx.y * block_size * 2 + wy * warp_width + ty;
-	size_t j = blockIdx.x * block_size + wx * warp_width + tx;
+	size_t i = block_index.y * block_size * 2 + wy * warp_width + ty;
+	size_t j = block_index.x * block_size + wx * warp_width + tx;
 
 	size_t aj;
 	size_t bi;
@@ -130,18 +138,17 @@ __global__ void mul_on_gpu_warp_intrinsics_kernel(double* a, double* b, double* 
 		double as[2];
 		double bs[2];
 
-		as[0] = (i < matrix_size && aj < matrix_size) ? a[i * matrix_size + aj] : 0.0;
+		as[0] = (i < matrix_size&& aj < matrix_size) ? a[i * matrix_size + aj] : 0.0;
 		as[1] = ((i + warp_height) < matrix_size && aj < matrix_size) ? a[(i + warp_height) * matrix_size + aj] : 0.0;
-		
 
-		bs[0] = (j < matrix_size && bi < matrix_size) ? b[bi * matrix_size + j] : 0.0;
+
+		bs[0] = (j < matrix_size&& bi < matrix_size) ? b[bi * matrix_size + j] : 0.0;
 		bs[1] = (j < matrix_size && (bi + warp_height) < matrix_size) ? b[(bi + warp_height) * matrix_size + j] : 0.0;
 
 		double b_k_j;
 		double a_i_k;
-		for (size_t k = 0; k < warp_width; k++)
-		{
-			b_k_j = __shfl_sync(-1, bs[k/ warp_height], (k % warp_height) * warp_width + tx);
+		for (size_t k = 0; k < warp_width; k++) {
+			b_k_j = __shfl_sync(-1, bs[k / warp_height], (k % warp_height) * warp_width + tx);
 
 			a_i_k = __shfl_sync(-1, as[0], ty * warp_width + k);
 			sum[0] += a_i_k * b_k_j;
@@ -151,62 +158,68 @@ __global__ void mul_on_gpu_warp_intrinsics_kernel(double* a, double* b, double* 
 		}
 	}
 
-	if (i < matrix_size && j < matrix_size)
-	{
+	if (i < matrix_size && j < matrix_size) {
 		result[i * matrix_size + j] = sum[0];
 	}
-	if ((i + warp_height) < matrix_size && j < matrix_size)
-	{
+	if ((i + warp_height) < matrix_size && j < matrix_size) {
 		result[(i + warp_height) * matrix_size + j] = sum[1];
 	}
 }
 
 
-
+template <size_t block_size>
 __global__ void mul_on_gpu_shared_kernel(double* a, double* b, double* result, size_t matrix_size) {
-	size_t tx = threadIdx.x;
-	size_t ty = threadIdx.y;
 
-	size_t i = blockDim.y * blockIdx.y + ty;
-	size_t j = blockDim.x * blockIdx.x + tx;
+	thread_block block = this_thread_block();
+	dim3 block_index = block.group_index();
+	dim3 thread_index = block.thread_index();
+
+	size_t tx = thread_index.x;
+	size_t ty = thread_index.y;
+
+	size_t i = block_size * block_index.y + ty;
+	size_t j = block_size * block_index.x + tx;
 
 	size_t aj;
 	size_t bi;
 	double sum = 0.0;
 	
-	for (size_t ind = 0; ind * CUDA_BLOCK_SIZE < matrix_size; ind++) {
-		aj = tx + CUDA_BLOCK_SIZE * ind;
-		bi = ty + CUDA_BLOCK_SIZE * ind;
+	for (size_t ind = 0; ind * block_size < matrix_size; ind++) {
+		aj = tx + block_size * ind;
+		bi = ty + block_size * ind;
 
-		__shared__ double as[CUDA_BLOCK_SIZE][CUDA_BLOCK_SIZE];
-		__shared__ double bs[CUDA_BLOCK_SIZE][CUDA_BLOCK_SIZE];
+		__shared__ double as[block_size][block_size];
+		__shared__ double bs[block_size][block_size];
 
 		as[ty][tx] = 0;
 		bs[ty][tx] = 0;
-		if (i < matrix_size && aj < matrix_size)
-		{
+		if (i < matrix_size && aj < matrix_size){
 			as[ty][tx] = a[i * matrix_size + aj];
 		}
-		if (j < matrix_size && bi < matrix_size)
-		{
+		if (j < matrix_size && bi < matrix_size){
 			bs[ty][tx] = b[bi * matrix_size + j];
 		}
 
-		__syncthreads();
-		for (size_t k = 0; k < CUDA_BLOCK_SIZE; k++)
+		block.sync();
+		for (size_t k = 0; k < block_size; k++)
 			sum += as[ty][k] * bs[k][tx];
-		__syncthreads();
+		block.sync();
 	}
 
-	if (i < matrix_size && j < matrix_size)
-	{
+	if (i < matrix_size && j < matrix_size){
 		result[i * matrix_size + j] = sum;
 	}	
 }
 
+
+template <size_t block_size>
 __global__ void mul_on_gpu_kernel(double* a, double* b, double* result, size_t matrix_size) {
-	size_t i = blockDim.y * blockIdx.y + threadIdx.y;
-	size_t j = blockDim.x * blockIdx.x + threadIdx.x;
+	thread_block block = this_thread_block();
+	dim3 block_index = block.group_index();
+	dim3 thread_index = block.thread_index();
+
+	size_t i = block_size * block_index.y + thread_index.y;
+	size_t j = block_size * block_index.x + thread_index.x;
 
 	if (i >= matrix_size || j >= matrix_size)
 		return;
@@ -236,18 +249,17 @@ double process_on_gpu(double* matrix_A, double* matrix_B, double* result, size_t
 
 	dim3 cuda_threads(CUDA_BLOCK_SIZE, CUDA_BLOCK_SIZE);
 	dim3 cuda_blocks((matrix_size + cuda_threads.x - 1) / cuda_threads.x, (matrix_size + cuda_threads.y - 1) / cuda_threads.y);
-
 	timer.start();
 	switch (mult_type)
 	{
 	case MultType::GPU:
-		mul_on_gpu_kernel <<< cuda_blocks, cuda_threads >>> (gpu_mem_A, gpu_mem_B, gpu_mem_res, matrix_size);
+		mul_on_gpu_kernel<CUDA_BLOCK_SIZE> <<< cuda_blocks, cuda_threads >>> (gpu_mem_A, gpu_mem_B, gpu_mem_res, matrix_size);
 		break;
 	case MultType::GPU_SHARED:
-		mul_on_gpu_shared_kernel <<< cuda_blocks, cuda_threads >>> (gpu_mem_A, gpu_mem_B, gpu_mem_res, matrix_size);
+		mul_on_gpu_shared_kernel<CUDA_BLOCK_SIZE> <<< cuda_blocks, cuda_threads >>> (gpu_mem_A, gpu_mem_B, gpu_mem_res, matrix_size);
 		break;
 	case MultType::GPU_WARP_INTRINSICS_1:
-		mul_on_gpu_warp_intrinsics_kernel_slow_1 << < cuda_blocks, cuda_threads >> > (gpu_mem_A, gpu_mem_B, gpu_mem_res, matrix_size);
+		mul_on_gpu_warp_intrinsics_kernel_slow_1<CUDA_BLOCK_SIZE> << < cuda_blocks, cuda_threads >> > (gpu_mem_A, gpu_mem_B, gpu_mem_res, matrix_size);
 		break;	
 	case MultType::GPU_WARP_INTRINSICS_2:
 		cuda_threads= dim3(32, 32);
